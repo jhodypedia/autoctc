@@ -1,5 +1,5 @@
 import { 
-    makeWASocket, // Named import untuk menghindari TypeError: makeWASocket.default
+    makeWASocket, // Named import untuk versi Baileys v6+
     useMultiFileAuthState, 
     fetchLatestBaileysVersion,
     delay
@@ -10,7 +10,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import pino from 'pino';
 import path from 'path';
-import fs from 'fs'; // Modul File System untuk manajemen pembersihan sesi fisik
+import fs from 'fs'; 
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,20 +28,25 @@ app.set('views', path.join(__dirname, 'views'));
 let sock = null;
 let isConnected = false;
 let currentQr = null;
-let cachedGroups = []; // Menyimpan memori daftar grup aktif
+let cachedGroups = []; 
 
 const SESSION_DIR = 'auth_session_pansa';
 
-// Helper Formatter Nomor Telepon Internasional (Global Multi-Country Support)
+// Helper Formatter Nomor Telepon (Mendukung Penuh Semua Negara di Dunia)
 const formatJid = (phone) => {
+    // 1. Hapus semua karakter non-angka termasuk tanda +, spasi, dan tanda hubung (-)
     let clean = phone.replace(/[^0-9]/g, '');
+    
+    // 2. Jika nomor diawali angka '0', asumsikan itu format lokal Indonesia dan konversi ke 62
     if (clean.startsWith('0')) {
-        clean = '62' + clean.slice(1); // Auto-shorthand correction untuk regional Indonesia
+        clean = '62' + clean.slice(1);
     }
+    
+    // 3. Kembalikan format JID resmi WhatsApp (@s.whatsapp.net) tanpa merusak kode negara lain (e.g. 52, 1, 44)
     return clean.includes('@s.whatsapp.net') ? clean : `${clean}@s.whatsapp.net`;
 };
 
-// Mengambil Data Seluruh Grup Terkoneksi
+// Mengambil Data Seluruh Daftar Grup WhatsApp
 async function syncGroups() {
     if (!sock || !isConnected) return;
     try {
@@ -52,7 +57,6 @@ async function syncGroups() {
             subject: g.subject
         }));
         
-        // Transmisikan list grup terbaru ke frontend secara berkala
         io.emit('group_list', cachedGroups);
         io.emit('log', { type: 'success', message: `Berhasil sinkronisasi ${cachedGroups.length} grup.` });
     } catch (err) {
@@ -61,7 +65,7 @@ async function syncGroups() {
     }
 }
 
-// Inisialisasi Inti Baileys Web API Connection Suite
+// Inisialisasi Utama Koneksi Baileys Engine Suite
 async function initWhatsApp(pairingPhone = null) {
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
     const { version } = await fetchLatestBaileysVersion();
@@ -74,7 +78,7 @@ async function initWhatsApp(pairingPhone = null) {
         browser: ['PANSA SYSTEM', 'Chrome', '1.0.0']
     });
 
-    // Skema Penanganan Integrasi Jabat Tangan Pairing Code
+    // Skema Integrasi Pemasangan Perangkat via Pairing Code
     if (pairingPhone && !sock.authState.creds.registered) {
         let cleanPhone = pairingPhone.replace(/[^0-9]/g, '');
         setTimeout(async () => {
@@ -87,7 +91,7 @@ async function initWhatsApp(pairingPhone = null) {
         }, 3000);
     }
 
-    // Pemantau Siklus Kehidupan Koneksi (Connection Lifecycle Monitor)
+    // Pemantau Siklus Koneksi (Connection Lifecycle Monitor)
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
@@ -103,29 +107,25 @@ async function initWhatsApp(pairingPhone = null) {
             cachedGroups = [];
             
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            // Jika statusCode === 401 berarti sesi di-logout paksa dari HP perangkat utama
             const shouldReconnect = statusCode !== 401;
 
             io.emit('status', { isConnected: false, state: 'DISCONNECTED', reconnecting: shouldReconnect });
             io.emit('group_list', []);
             
             if (!shouldReconnect) {
-                io.emit('log', { type: 'error', message: 'Sesi kedaluwarsa atau di-logout. Menghapus token dari sistem...' });
+                io.emit('log', { type: 'error', message: 'Sesi kedaluwarsa atau di-logout. Menghapus token lama...' });
                 
-                // PEMBERSIHAN OTOMATIS: Hapus folder data sesi fisik di penyimpanan Termux
                 if (fs.existsSync(SESSION_DIR)) {
                     try {
                         fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-                        console.log(`[System] Folder '${SESSION_DIR}' berhasil dibersihkan dari penyimpanan.`);
+                        console.log(`[System] Folder data sesi '${SESSION_DIR}' berhasil dibersihkan.`);
                     } catch (e) {
                         console.error('Gagal membersihkan folder sesi lama:', e.message);
                     }
                 }
-                
-                // Memicu siklus instance Baileys baru untuk memancing kemunculan QR Code fresh di dashboard
                 setTimeout(() => initWhatsApp(), 2000);
             } else {
-                io.emit('log', { type: 'warn', message: `Koneksi terputus mendadak (Code: ${statusCode || 'Unknown'}). Merekonstruksi ulang koneksi...` });
+                io.emit('log', { type: 'warn', message: `Koneksi terputus (Code: ${statusCode || 'Unknown'}). Menghubungkan ulang otomatis...` });
                 initWhatsApp();
             }
         } else if (connection === 'open') {
@@ -134,7 +134,6 @@ async function initWhatsApp(pairingPhone = null) {
             io.emit('status', { isConnected: true, state: 'CONNECTED' });
             io.emit('log', { type: 'success', message: '✅ Server Berhasil Membuka Jalur Gateway WhatsApp!' });
             
-            // Berikan jeda handshake aman pasca-koneksi sebelum melakukan query grup massal
             await delay(2000);
             await syncGroups();
         }
@@ -143,23 +142,20 @@ async function initWhatsApp(pairingPhone = null) {
     sock.ev.on('creds.update', saveCreds);
 }
 
-// HTTP Rendering Endpoint
+// HTTP View Endpoint
 app.get('/', (req, res) => { res.render('index'); });
 
-// WebSocket Real-time Core Event Handler Pipelines
+// WebSocket Real-time Core Pipelines
 io.on('connection', (socket) => {
-    // Sinkronisasi komponen status saat halaman dimuat/direfresh oleh pengguna
     socket.emit('status', { isConnected, state: isConnected ? 'CONNECTED' : (currentQr ? 'QR_READY' : 'INITIALIZING') });
     if (currentQr) socket.emit('qr', { qr: currentQr });
     if (isConnected && cachedGroups.length > 0) socket.emit('group_list', cachedGroups);
 
-    // Menangani Alur Permintaan Kode Pemasangan Perangkat (Pairing Code Route)
     socket.on('request_pairing', async (data) => {
         socket.emit('log', { type: 'info', message: `Meminta request pairing code untuk nomor target: ${data.phone}...` });
         initWhatsApp(data.phone);
     });
 
-    // Menangani Alur Refresh Daftar Grup Manual dari Tombol Frontend
     socket.on('refresh_groups', async () => {
         if(isConnected) {
             await syncGroups();
@@ -168,7 +164,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Core Bulk Stream Processor Pipeline Engine (Anti-Spam & Anti-Memory Leak Structure)
+    // Core Bulk Stream Engine
     socket.on('start_bulk', async (data) => {
         if (!isConnected) return socket.emit('log', { type: 'error', message: 'Aksi digagalkan karena server sedang offline.' });
 
@@ -179,14 +175,19 @@ io.on('connection', (socket) => {
             const item = list[i];
             try {
                 if (type === 'contact') {
-                    // Eksekusi Pendaftaran Kontak ke Sistem Buku Alamat WhatsApp Signalling
                     const jid = formatJid(item.phone);
-                    await sock.updateContactSignaling([{ id: jid, name: item.name || `Sync ${item.phone}` }]);
+                    
+                    // FIXED BUG: Menggunakan upsertContacts menggantikan updateContactSignaling yang sudah deprecated
+                    await sock.upsertContacts([{ 
+                        id: jid, 
+                        name: item.name || `Sync ${item.phone}`,
+                        verifiedName: item.name || `Sync ${item.phone}`
+                    }]);
+
                     socket.emit('item_progress', { 
                         index: i, status: 'success', message: `[KONTAK] Sinkronisasi data sukses untuk nomor ${item.phone} (${item.name || 'No Name'})` 
                     });
                 } else if (type === 'group') {
-                    // Eksekusi Memasukkan Anggota Baru ke Grup Terpilih via JID Terpeta
                     const memberJid = formatJid(item.phone);
                     const response = await sock.groupParticipantsUpdate(targetGroupJid, [memberJid], 'add');
                     let statusInfo = response[0]?.status || '200';
@@ -194,19 +195,19 @@ io.on('connection', (socket) => {
                     if (statusInfo === '200') {
                         socket.emit('item_progress', { index: i, status: 'success', message: `[GRUP] Anggota ${item.phone} sukses dimasukkan ke dalam grup.` });
                     } else if (statusInfo === '403') {
-                        socket.emit('item_progress', { index: i, status: 'warn', message: `[GRUP] Nomor ${item.phone} membatasi undangan masuk via pengaturan privasi mereka.` });
+                        socket.emit('item_progress', { index: i, status: 'warn', message: `[GRUP] Nomor ${item.phone} membatasi undangan masuk via pengaturan privasi.` });
                     } else {
-                        socket.emit('item_progress', { index: i, status: 'error', message: `[GRUP] Gagal memproses nomor ${item.phone}. Status tanggapan server: ${statusInfo}` });
+                        socket.emit('item_progress', { index: i, status: 'error', message: `[GRUP] Gagal memproses nomor ${item.phone}. Status Code: ${statusInfo}` });
                     }
                 }
                 
-                // Jeda pengaman dinamis (2.5 Detik) untuk melindungi akun dari deteksi spam bot otomatis milik WhatsApp
+                // Jeda 2.5 detik per nomor untuk meminimalkan risiko ban/blokir dari sistem WhatsApp
                 await delay(2500); 
             } catch (err) {
                 socket.emit('item_progress', { index: i, status: 'error', message: `Gagal mengeksekusi indeks ke-${i+1} (${item.phone}): ${err.message}` });
             }
         }
-        socket.emit('bulk_complete', { message: `Pemrosesan database massal selesai. Total data terpajang: ${list.length} item.` });
+        socket.emit('bulk_complete', { message: `Pemrosesan database massal selesai. Total data: ${list.length} item.` });
     });
 });
 
