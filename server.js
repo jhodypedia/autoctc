@@ -1,5 +1,5 @@
 import { 
-    makeWASocket, // Named import untuk versi Baileys v6+
+    makeWASocket, // Named import untuk kompatibilitas versi Baileys v6+
     useMultiFileAuthState, 
     fetchLatestBaileysVersion,
     delay
@@ -10,7 +10,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import pino from 'pino';
 import path from 'path';
-import fs from 'fs'; 
+import fs from 'fs'; // Modul File System untuk manajemen pembersihan sesi fisik
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,7 +28,7 @@ app.set('views', path.join(__dirname, 'views'));
 let sock = null;
 let isConnected = false;
 let currentQr = null;
-let cachedGroups = []; 
+let cachedGroups = []; // Menyimpan data daftar grup aktif
 
 const SESSION_DIR = 'auth_session_pansa';
 
@@ -46,7 +46,7 @@ const formatJid = (phone) => {
     return clean.includes('@s.whatsapp.net') ? clean : `${clean}@s.whatsapp.net`;
 };
 
-// Mengambil Data Seluruh Daftar Grup WhatsApp
+// Mengambil Data Seluruh Daftar Grup WhatsApp Terkoneksi
 async function syncGroups() {
     if (!sock || !isConnected) return;
     try {
@@ -57,6 +57,7 @@ async function syncGroups() {
             subject: g.subject
         }));
         
+        // Transmisikan list grup terbaru ke frontend secara berkala
         io.emit('group_list', cachedGroups);
         io.emit('log', { type: 'success', message: `Berhasil sinkronisasi ${cachedGroups.length} grup.` });
     } catch (err) {
@@ -113,8 +114,9 @@ async function initWhatsApp(pairingPhone = null) {
             io.emit('group_list', []);
             
             if (!shouldReconnect) {
-                io.emit('log', { type: 'error', message: 'Sesi kedaluwarsa atau di-logout. Menghapus token lama...' });
+                io.emit('log', { type: 'error', message: 'Sesi kedaluwarsa atau di-logout. Menghapus token lama dari sistem...' });
                 
+                // PEMBERSIHAN OTOMATIS: Hapus folder data sesi fisik di penyimpanan Termux jika di-logout
                 if (fs.existsSync(SESSION_DIR)) {
                     try {
                         fs.rmSync(SESSION_DIR, { recursive: true, force: true });
@@ -123,6 +125,8 @@ async function initWhatsApp(pairingPhone = null) {
                         console.error('Gagal membersihkan folder sesi lama:', e.message);
                     }
                 }
+                
+                // Memicu instance Baileys baru untuk memancing kemunculan QR Code fresh di dashboard
                 setTimeout(() => initWhatsApp(), 2000);
             } else {
                 io.emit('log', { type: 'warn', message: `Koneksi terputus (Code: ${statusCode || 'Unknown'}). Menghubungkan ulang otomatis...` });
@@ -134,6 +138,7 @@ async function initWhatsApp(pairingPhone = null) {
             io.emit('status', { isConnected: true, state: 'CONNECTED' });
             io.emit('log', { type: 'success', message: '✅ Server Berhasil Membuka Jalur Gateway WhatsApp!' });
             
+            // Berikan jeda handshake aman pasca-koneksi sebelum query grup massal
             await delay(2000);
             await syncGroups();
         }
@@ -147,15 +152,18 @@ app.get('/', (req, res) => { res.render('index'); });
 
 // WebSocket Real-time Core Pipelines
 io.on('connection', (socket) => {
+    // Sinkronisasi komponen status saat halaman dimuat/direfresh oleh pengguna
     socket.emit('status', { isConnected, state: isConnected ? 'CONNECTED' : (currentQr ? 'QR_READY' : 'INITIALIZING') });
     if (currentQr) socket.emit('qr', { qr: currentQr });
     if (isConnected && cachedGroups.length > 0) socket.emit('group_list', cachedGroups);
 
+    // Menangani Alur Permintaan Kode Pemasangan Perangkat (Pairing Code)
     socket.on('request_pairing', async (data) => {
         socket.emit('log', { type: 'info', message: `Meminta request pairing code untuk nomor target: ${data.phone}...` });
         initWhatsApp(data.phone);
     });
 
+    // Menangani Alur Refresh Daftar Grup Manual dari Frontend
     socket.on('refresh_groups', async () => {
         if(isConnected) {
             await syncGroups();
@@ -164,7 +172,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Core Bulk Stream Engine
+    // Core Bulk Stream Engine (Anti-Spam & Anti-Memory Leak)
     socket.on('start_bulk', async (data) => {
         if (!isConnected) return socket.emit('log', { type: 'error', message: 'Aksi digagalkan karena server sedang offline.' });
 
@@ -177,8 +185,8 @@ io.on('connection', (socket) => {
                 if (type === 'contact') {
                     const jid = formatJid(item.phone);
                     
-                    // FIXED BUG: Menggunakan upsertContacts menggantikan updateContactSignaling yang sudah deprecated
-                    await sock.upsertContacts([{ 
+                    // FIXED FINAL: Menggunakan Event Emit internal Baileys untuk mendaftarkan kontak baru ke metadata store
+                    sock.ev.emit('contacts.upsert', [{ 
                         id: jid, 
                         name: item.name || `Sync ${item.phone}`,
                         verifiedName: item.name || `Sync ${item.phone}`
@@ -188,6 +196,7 @@ io.on('connection', (socket) => {
                         index: i, status: 'success', message: `[KONTAK] Sinkronisasi data sukses untuk nomor ${item.phone} (${item.name || 'No Name'})` 
                     });
                 } else if (type === 'group') {
+                    // Eksekusi Memasukkan Anggota Baru ke Grup Terpilih via JID Terpeta
                     const memberJid = formatJid(item.phone);
                     const response = await sock.groupParticipantsUpdate(targetGroupJid, [memberJid], 'add');
                     let statusInfo = response[0]?.status || '200';
@@ -201,7 +210,7 @@ io.on('connection', (socket) => {
                     }
                 }
                 
-                // Jeda 2.5 detik per nomor untuk meminimalkan risiko ban/blokir dari sistem WhatsApp
+                // Jeda 2.5 detik per nomor untuk meminimalkan risiko ban/blokir dari sistem anti-spam WhatsApp
                 await delay(2500); 
             } catch (err) {
                 socket.emit('item_progress', { index: i, status: 'error', message: `Gagal mengeksekusi indeks ke-${i+1} (${item.phone}): ${err.message}` });
