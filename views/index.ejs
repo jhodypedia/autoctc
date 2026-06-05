@@ -37,7 +37,6 @@
             border-color: #14b8a6;
             box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
         }
-        /* Memastikan gambar QR Code pas di layar HP */
         #qrcode-target img {
             margin: 0 auto;
             max-width: 100%;
@@ -56,7 +55,7 @@
                 </div>
                 <div>
                     <h1 class="text-base font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400">PANSA SYSTEM MATRIX</h1>
-                    <p class="text-[10px] text-gray-400 font-medium tracking-wide">AUTOMATION PROTOCOL ENGINE v2.0</p>
+                    <p class="text-[10px] text-gray-400 font-medium tracking-wide">AUTOMATION PROTOCOL ENGINE v2.1</p>
                 </div>
             </div>
             
@@ -148,12 +147,18 @@
                 </div>
 
                 <div class="space-y-2">
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Unggah Database (.txt)</label>
-                    <div class="border border-dashed border-gray-800 bg-gray-950/20 rounded-2xl p-6 text-center relative group">
-                        <input type="file" id="txt-file-input" accept=".txt" onchange="handleFileProcessing(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="flex justify-between items-center">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Unggah Database (.txt / .vcf)</label>
+                        <button onclick="showFormatGuide()" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
+                            <i data-lucide="help-circle" class="w-3 h-3"></i> Info Format
+                        </button>
+                    </div>
+                    <div class="border border-dashed border-gray-800 hover:border-gray-700 bg-gray-950/20 rounded-2xl p-6 text-center relative group">
+                        <input type="file" id="txt-file-input" accept=".txt,.vcf" onchange="handleFileProcessing(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <div class="flex flex-col items-center gap-2">
                             <i data-lucide="upload-cloud" class="w-5 h-5 text-gray-500 group-hover:text-teal-400 transition-colors"></i>
-                            <p id="file-status-text" class="text-xs font-semibold text-gray-300">Pilih berkas teks (.txt) Anda</p>
+                            <p id="file-status-text" class="text-xs font-semibold text-gray-300">Pilih berkas teks (.txt) atau kontak (.vcf)</p>
+                            <p class="text-[9px] text-gray-500">Mendukung ekspor vCard Android & iPhone secara native</p>
                         </div>
                     </div>
                 </div>
@@ -232,7 +237,6 @@
         socket.on('qr', (data) => {
             const target = document.getElementById('qrcode-target');
             target.innerHTML = "";
-            // Set size dinamis: 160px di layar kecil agar tidak terpotong CSS pembungkus
             const size = window.innerWidth < 640 ? 150 : 190;
             new QRCode(target, { text: data.qr, width: size, height: size, colorDark: "#030712", colorLight: "#ffffff" });
         });
@@ -330,19 +334,53 @@
             clearQueue();
         }
 
+        // ================= BARU: PARSER ENGINE UNTUK HYBRID FILE TEXT & VCF =================
         function handleFileProcessing(e) {
             const file = e.target.files[0];
             if (!file) return;
 
+            const extension = file.name.split('.').pop().toLowerCase();
             const reader = new FileReader();
+            
             reader.onload = function(evt) {
-                const lines = evt.target.result.split(/\r?\n/);
+                const rawContent = evt.target.result;
                 parsedDataCache = [];
-                lines.forEach(line => {
-                    if(!line.trim()) return;
-                    const parts = line.split(',');
-                    parsedDataCache.push({ phone: parts[0]?.trim(), name: parts[1]?.trim() || 'No Metadata' });
-                });
+
+                if (extension === 'vcf') {
+                    // --- ALGORITMA PARSER VCF NATIVE ---
+                    // Memecah file berdasarkan penanda kontak VCF (BEGIN:VCARD ... END:VCARD)
+                    const vcardBlocks = rawContent.split(/BEGIN:VCARD/i);
+                    
+                    vcardBlocks.forEach(block => {
+                        if (!block.trim()) return;
+
+                        // Regex untuk menangkap nama (FN) dan nomor telepon (TEL)
+                        const fnMatch = block.match(/FN(?:;[^:]*)?:[\s]*([^\r\n;]+)/i);
+                        const telMatch = block.match(/TEL(?:;[^:]*)?:[\s]*([^\r\n;]+)/i);
+
+                        if (telMatch) {
+                            let phone = telMatch[1].trim();
+                            // Bersihkan karakter pemisah bawaan VCF (seperti spasi atau tanda hubung)
+                            phone = phone.replace(/[-()\s]/g, ''); 
+                            
+                            let name = fnMatch ? fnMatch[1].trim() : 'VCF Contact';
+                            
+                            parsedDataCache.push({ phone, name });
+                        }
+                    });
+                } else {
+                    // --- STANDARD TXT PARSER ---
+                    const lines = rawContent.split(/\r?\n/);
+                    lines.forEach(line => {
+                        if(!line.trim()) return;
+                        const parts = line.split(',');
+                        parsedDataCache.push({ 
+                            phone: parts[0]?.trim(), 
+                            name: parts[1]?.trim() || 'No Metadata' 
+                            });
+                    });
+                }
+
                 renderQueuePreviewTable();
             };
             reader.readAsText(file);
@@ -355,7 +393,7 @@
             if (parsedDataCache.length === 0) { section.classList.add('hidden'); return; }
 
             document.getElementById('queue-count').innerText = parsedDataCache.length;
-            document.getElementById('file-status-text').innerText = `Terbaca ${parsedDataCache.length} baris data.`;
+            document.getElementById('file-status-text').innerText = `Terbaca ${parsedDataCache.length} kontak dari file.`;
 
             parsedDataCache.forEach((item, idx) => {
                 const tr = document.createElement('tr');
@@ -377,7 +415,7 @@
         function clearQueue() {
             parsedDataCache = [];
             document.getElementById('txt-file-input').value = "";
-            document.getElementById('file-status-text').innerText = "Pilih berkas teks (.txt) Anda";
+            document.getElementById('file-status-text').innerText = "Pilih berkas teks (.txt) atau kontak (.vcf)";
             renderQueuePreviewTable();
         }
 
@@ -394,7 +432,7 @@
         }
 
         function showFormatGuide() {
-            alert("Format Dokumen Teks (.txt):\n[nomor]\natau\n[nomor],[nama_opsional]");
+            alert("Informasi Panduan File:\n\n1. Format .TXT\nStruktur: [nomor],[nama_opsional] per baris.\n\n2. Format .VCF (vCard)\nKamu bisa langsung ekspor kontak dari Google Contacts, HP Android, atau iCloud/iPhone (.vcf) dan mengunggahnya langsung kesini tanpa modifikasi.");
         }
 
         function logToConsole(type, message) {
