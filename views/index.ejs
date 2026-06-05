@@ -10,7 +10,6 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
-    
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
@@ -19,29 +18,15 @@
             color: #f3f4f6; 
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.05) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.03) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.03) 0px, transparent 50%);
         }
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        /* Premium Glassmorphism & Linear Borders */
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
         .glass-panel { 
-            background: rgba(17, 24, 39, 0.45); 
+            background: rgba(17, 24, 39, 0.6); 
             backdrop-filter: blur(16px); 
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.06); 
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-        }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .glass-card:hover {
-            background: rgba(255, 255, 255, 0.04);
-            border-color: rgba(255, 255, 255, 0.08);
-            transform: translateY(-2px);
         }
         .glass-input {
             background: rgba(3, 7, 18, 0.6);
@@ -52,176 +37,158 @@
             border-color: #14b8a6;
             box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.15);
         }
-        /* Custom Scrollbar for Terminal & Preview */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        /* Memastikan gambar QR Code pas di layar HP */
+        #qrcode-target img {
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
     </style>
 </head>
-<body class="min-h-screen pb-16">
+<body class="min-h-screen pb-12">
 
-    <nav class="border-b border-gray-900 bg-gray-950/60 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+    <nav class="border-b border-gray-900 bg-gray-950/60 backdrop-blur-md sticky top-0 z-50 px-4 py-4 sm:px-6">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3">
-                <div class="p-2.5 bg-gradient-to-br from-teal-500 to-indigo-500 rounded-xl shadow-lg shadow-teal-500/10">
-                    <i data-lucide="cpu" class="w-6 h-6 text-white animate-pulse"></i>
+                <div class="p-2 bg-gradient-to-br from-teal-500 to-indigo-500 rounded-xl">
+                    <i data-lucide="cpu" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400">PANSA SYSTEM MATRIX</h1>
-                    <p class="text-[11px] text-gray-400 font-medium tracking-wide">AUTOMATION PROTOCOL ENGINE v2.0</p>
+                    <h1 class="text-base font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400">PANSA SYSTEM MATRIX</h1>
+                    <p class="text-[10px] text-gray-400 font-medium tracking-wide">AUTOMATION PROTOCOL ENGINE v2.0</p>
                 </div>
             </div>
             
-            <div class="flex items-center gap-3 bg-gray-900/40 border border-gray-800/60 py-2 px-4 rounded-full backdrop-blur">
-                <span id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]"></span>
-                <span id="status-text" class="text-[11px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1">Connecting Engine</span>
+            <div class="flex items-center gap-2 bg-gray-900/40 border border-gray-800 py-1.5 px-4 rounded-full">
+                <span id="status-indicator" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span id="status-text" class="text-[10px] font-bold uppercase tracking-widest text-gray-400">Connecting...</span>
             </div>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <section id="auth-section" class="lg:col-span-1 space-y-6 transition-all duration-500">
-            <div class="glass-panel p-6 rounded-2xl space-y-6 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl"></div>
-                
-                <h2 class="text-sm font-bold text-gray-200 border-b border-gray-800 pb-3 flex items-center gap-2">
+        <section id="auth-section" class="col-span-1 space-y-6">
+            <div class="glass-panel p-5 sm:p-6 rounded-2xl space-y-5">
+                <h2 class="text-xs font-bold text-gray-200 border-b border-gray-800 pb-2.5 flex items-center gap-2">
                     <i data-lucide="shield-check" class="w-4 h-4 text-teal-400"></i> Otentikasi Gateway
                 </h2>
 
-                <div class="flex bg-gray-950 p-1 rounded-xl border border-gray-800/80">
-                    <button id="tab-qr" onclick="switchAuthTab('qr')" class="flex-1 text-xs font-semibold py-2.5 rounded-lg bg-teal-600 text-white transition-all duration-300 flex items-center justify-center gap-2">
-                        <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> QR Code
+                <div class="flex bg-gray-950 p-1 rounded-xl border border-gray-800">
+                    <button id="tab-qr" onclick="switchAuthTab('qr')" class="flex-1 text-xs font-semibold py-2 rounded-lg bg-teal-600 text-white transition-all">
+                        QR Code
                     </button>
-                    <button id="tab-pairing" onclick="switchAuthTab('pairing')" class="flex-1 text-xs font-semibold py-2.5 rounded-lg text-gray-400 hover:text-white transition-all duration-300 flex items-center justify-center gap-2">
-                        <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> Pairing Code
+                    <button id="tab-pairing" onclick="switchAuthTab('pairing')" class="flex-1 text-xs font-semibold py-2 rounded-lg text-gray-400 hover:text-white transition-all">
+                        Pairing Code
                     </button>
                 </div>
 
-                <div id="panel-qr" class="flex flex-col items-center py-4 space-y-4">
-                    <div id="qrcode-container" class="p-3 bg-white rounded-2xl shadow-2xl inline-block border-4 border-gray-900/20 transform transition duration-500 hover:scale-[1.02]">
-                        <div id="qrcode-target"></div>
+                <div id="panel-qr" class="flex flex-col items-center py-2 space-y-4">
+                    <div id="qrcode-container" class="p-3 bg-white rounded-2xl inline-flex justify-center items-center w-48 h-48 sm:w-52 sm:h-52 shadow-inner">
+                        <div id="qrcode-target" class="w-full h-full flex justify-center items-center">
+                            <div id="qr-placeholder" class="text-gray-400 flex flex-col items-center gap-2 text-xs font-medium">
+                                <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-teal-500"></i>
+                                <span>Memuat QR Code...</span>
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-[11px] text-gray-400 text-center px-4 leading-relaxed">
-                        Buka WhatsApp &rarr; Perangkat Tertaut &rarr; Tautkan Perangkat untuk memindai kode QR.
+                    <p class="text-[11px] text-gray-400 text-center px-2 leading-relaxed">
+                        Buka WhatsApp &rarr; Perangkat Tertaut &rarr; Tautkan Perangkat.
                     </p>
                 </div>
 
                 <div id="panel-pairing" class="hidden space-y-4">
                     <div class="space-y-1.5">
-                        <label class="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Nomor WA Internasional</label>
-                        <input type="text" id="pairing-phone" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none" placeholder="Contoh: 628123456789">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Nomor WA Internasional</label>
+                        <input type="text" id="pairing-phone" class="w-full glass-input rounded-xl px-4 py-2.5 text-sm text-gray-100 placeholder-gray-700 focus:outline-none" placeholder="Contoh: 628123456789">
                     </div>
-                    <button onclick="requestPairingCode()" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all duration-300 flex items-center justify-center gap-2">
-                        <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Generate Code
+                    <button onclick="requestPairingCode()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Get Pairing Code
                     </button>
                     
-                    <div id="pairing-display-box" class="hidden bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4 text-center transform scale-95 transition-all">
-                        <span class="text-[10px] font-bold tracking-widest text-indigo-400 uppercase block mb-1">Pairing Code</span>
-                        <div id="pairing-code-value" class="text-2xl font-mono font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-200 tracking-widest select-all">--------</div>
+                    <div id="pairing-display-box" class="hidden bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+                        <span class="text-[9px] font-bold tracking-widest text-indigo-400 uppercase block mb-1">Pairing Code</span>
+                        <div id="pairing-code-value" class="text-xl font-mono font-bold text-white tracking-widest select-all">--------</div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section id="main-board-section" class="lg:col-span-2 space-y-6 transition-all duration-500">
-            <div class="glass-panel p-6 rounded-2xl space-y-6 relative overflow-hidden">
-                <div class="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl"></div>
+        <section id="main-board-section" class="col-span-1 lg:col-span-2 space-y-6">
+            <div class="glass-panel p-5 sm:p-6 rounded-2xl space-y-5">
                 
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800/80 pb-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
                     <div>
-                        <h2 class="text-base font-bold text-gray-100 flex items-center gap-2">
+                        <h2 class="text-sm font-bold text-gray-100 flex items-center gap-2">
                             <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i> Task Control Panel
                         </h2>
-                        <p class="text-xs text-gray-400 mt-0.5">Eksekusi modul antrean massal global secara realtime</p>
                     </div>
                     
-                    <div class="flex bg-gray-950 p-1 rounded-xl border border-gray-800/80 w-fit">
-                        <button id="mode-contact" onclick="setBulkMode('contact')" class="text-xs px-4 py-2.5 font-bold rounded-lg bg-gray-900 text-teal-400 border border-teal-500/10 transition-all duration-300 flex items-center gap-1.5">
-                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Bulk Contacts
+                    <div class="flex bg-gray-950 p-1 rounded-xl border border-gray-800 w-full sm:w-fit">
+                        <button id="mode-contact" onclick="setBulkMode('contact')" class="flex-1 sm:flex-none text-xs px-3 py-2 font-bold rounded-lg bg-gray-900 text-teal-400 border border-teal-500/10">
+                            Bulk Contacts
                         </button>
-                        <button id="mode-group" onclick="setBulkMode('group')" class="text-xs px-4 py-2.5 font-bold rounded-lg text-gray-400 hover:text-white transition-all duration-300 flex items-center gap-1.5">
-                            <i data-lucide="users" class="w-3.5 h-3.5"></i> Bulk Add Group
+                        <button id="mode-group" onclick="setBulkMode('group')" class="flex-1 sm:flex-none text-xs px-3 py-2 font-bold rounded-lg text-gray-400 hover:text-white">
+                            Bulk Add Group
                         </button>
                     </div>
                 </div>
 
-                <div id="group-selector-container" class="hidden bg-gray-950/80 border border-gray-800/80 p-4 rounded-xl space-y-3 transform scale-98 transition-all">
+                <div id="group-selector-container" class="hidden bg-gray-950/80 border border-gray-800 p-4 rounded-xl space-y-2.5">
                     <div class="flex justify-between items-center">
-                        <label class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                            <i data-lucide="target" class="w-3.5 h-3.5 text-indigo-400"></i> Pilih Grup Terget WhatsApp
-                        </label>
-                        <button onclick="refreshGroupList()" class="text-xs text-teal-400 hover:text-teal-300 font-semibold flex items-center gap-1">
-                            <i data-lucide="rotate-cw" class="w-3 h-3"></i> Sync Group
+                        <label class="block text-[10px] font-bold text-gray-300 uppercase tracking-wider">🎯 Pilih Target Grup WhatsApp</label>
+                        <button onclick="refreshGroupList()" class="text-xs text-teal-400 font-semibold flex items-center gap-1">
+                            <i data-lucide="rotate-cw" class="w-3 h-3"></i> Sync
                         </button>
                     </div>
-                    <select id="group-select" class="w-full glass-input rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none">
-                        <option value="">-- Sinkronisasi grup otomatis... --</option>
+                    <select id="group-select" class="w-full glass-input rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none option:bg-gray-950">
+                        <option value="">-- Pilih Grup Target --</option>
                     </select>
                 </div>
 
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-gray-400"></i> Unggah Database (.txt)
-                        </label>
-                        <button onclick="showFormatGuide()" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
-                            <i data-lucide="help-circle" class="w-3 h-3"></i> Panduan Format
-                        </button>
-                    </div>
-
-                    <div class="border border-dashed border-gray-800 hover:border-gray-700 bg-gray-950/30 transition-all rounded-2xl p-8 text-center cursor-pointer relative group">
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Unggah Database (.txt)</label>
+                    <div class="border border-dashed border-gray-800 bg-gray-950/20 rounded-2xl p-6 text-center relative group">
                         <input type="file" id="txt-file-input" accept=".txt" onchange="handleFileProcessing(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="space-y-2.5 flex flex-col items-center">
-                            <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 group-hover:border-gray-700 transition-colors">
-                                <i data-lucide="upload-cloud" class="w-6 h-6 text-gray-400 group-hover:text-teal-400 transition-colors"></i>
-                            </div>
-                            <div>
-                                <p id="file-status-text" class="text-xs font-semibold text-gray-300">Pilih atau seret file teks kamu ke sini</p>
-                                <p class="text-[11px] text-gray-500 mt-0.5">Sistem memisahkan nomor & nama secara cerdas</p>
-                            </div>
+                        <div class="flex flex-col items-center gap-2">
+                            <i data-lucide="upload-cloud" class="w-5 h-5 text-gray-500 group-hover:text-teal-400 transition-colors"></i>
+                            <p id="file-status-text" class="text-xs font-semibold text-gray-300">Pilih berkas teks (.txt) Anda</p>
                         </div>
                     </div>
                 </div>
 
-                <div id="preview-section" class="hidden bg-gray-950/60 rounded-xl border border-gray-800/80 overflow-hidden transform scale-98 transition-all">
-                    <div class="px-4 py-3 bg-gray-900/40 border-b border-gray-800/80 flex justify-between items-center">
-                        <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <i data-lucide="list-ordered" class="w-3.5 h-3.5 text-gray-400"></i> Antrean Grid (<span id="queue-count" class="text-teal-400">0</span> Item)
-                        </span>
-                        <button onclick="clearQueue()" class="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
-                        </button>
+                <div id="preview-section" class="hidden bg-gray-950/60 rounded-xl border border-gray-800 overflow-hidden">
+                    <div class="px-4 py-2.5 bg-gray-900/40 border-b border-gray-800 flex justify-between items-center text-xs">
+                        <span class="font-bold text-gray-400 uppercase tracking-wider">Antrean (<span id="queue-count" class="text-teal-400">0</span>)</span>
+                        <button onclick="clearQueue()" class="text-rose-400 font-semibold flex items-center gap-1"><i data-lucide="trash-2" class="w-3 h-3"></i> Clear</button>
                     </div>
-                    <div class="max-h-52 overflow-y-auto">
-                        <table class="w-full text-left text-xs">
+                    <div class="max-h-44 overflow-y-auto block w-full overflow-x-auto">
+                        <table class="w-full text-left text-xs min-w-[400px]">
                             <thead>
                                 <tr class="border-b border-gray-900 bg-gray-950 text-gray-400 font-semibold">
-                                    <th class="p-3 w-12 text-center">Index</th>
-                                    <th class="p-3">Identitas / Nomor Target</th>
-                                    <th class="p-3">Nama Metadata</th>
-                                    <th class="p-3 w-28 text-center">Pipeline State</th>
+                                    <th class="p-2.5 w-10 text-center">No</th>
+                                    <th class="p-2.5">Nomor Target</th>
+                                    <th class="p-2.5">Nama Metadata</th>
+                                    <th class="p-2.5 w-24 text-center">Status</th>
                                 </tr>
                             </thead>
                             <tbody id="preview-table-body" class="divide-y divide-gray-900/60 font-mono"></tbody>
                         </table>
                     </div>
-                    <div class="p-4 bg-gray-900/20 border-t border-gray-800/80">
-                        <button id="btn-execute-bulk" onclick="executeBulkProcess()" class="w-full bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 hover:opacity-95 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-widest shadow-xl shadow-teal-500/5 transition-transform active:scale-[0.995] flex items-center justify-center gap-2">
-                            <i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Eksekusi Protokol Antrean
+                    <div class="p-3 bg-gray-900/20 border-t border-gray-800">
+                        <button id="btn-execute-bulk" onclick="executeBulkProcess()" class="w-full bg-gradient-to-r from-teal-500 to-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Eksekusi Protokol
                         </button>
                     </div>
                 </div>
 
                 <div class="space-y-2">
-                    <span class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <i data-lucide="terminal" class="w-3.5 h-3.5 text-teal-400"></i> Realtime Diagnostic Core Console
+                    <span class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        <i data-lucide="terminal" class="w-3.5 h-3.5 text-teal-400"></i> Terminal Realtime Log
                     </span>
-                    <div id="diagnostic-console" class="bg-gray-950 border border-gray-900 rounded-xl p-4 h-44 overflow-y-auto font-mono text-[11px] text-gray-300 space-y-1.5 shadow-inner">
-                        <div class="text-gray-600 flex items-center gap-1.5">
-                            <i data-lucide="info" class="w-3 h-3"></i> Matrix monitoring suite ready. Waiting for tasks...
-                        </div>
+                    <div id="diagnostic-console" class="bg-gray-950 border border-gray-950 rounded-xl p-3 h-36 overflow-y-auto font-mono text-[10px] text-gray-300 space-y-1 shadow-inner">
+                        <div class="text-gray-600 flex items-center gap-1"><i data-lucide="info" class="w-3 h-3"></i> Monitoring ready...</div>
                     </div>
                 </div>
 
@@ -234,10 +201,7 @@
         let parsedDataCache = [];
         let activeBulkMode = 'contact';
 
-        // Initialize Lucide Icons on view loaded
-        document.addEventListener("DOMContentLoaded", () => {
-            lucide.createIcons();
-        });
+        document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
         socket.on('status', (data) => {
             const indicator = document.getElementById('status-indicator');
@@ -246,38 +210,40 @@
             const mainBoardSection = document.getElementById('main-board-section');
 
             if (data.isConnected) {
-                indicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]";
+                indicator.className = "w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]";
                 statusText.innerText = "WhatsApp Online";
-                statusText.className = "text-[11px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-1";
+                statusText.className = "text-[10px] font-bold uppercase tracking-widest text-emerald-400";
                 
                 authSection.classList.add('hidden');
-                mainBoardSection.className = "lg:col-span-3 space-y-6 transition-all duration-500";
+                mainBoardSection.className = "col-span-1 lg:col-span-3 space-y-6 transition-all duration-500";
             } else {
-                indicator.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.5)]";
+                indicator.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
                 statusText.innerText = data.state === 'QR_READY' ? "Scan Code Ready" : "Offline / Auth Needed";
-                statusText.className = "text-[11px] font-bold uppercase tracking-widest text-amber-400 flex items-center gap-1";
+                statusText.className = "text-[10px] font-bold uppercase tracking-widest text-amber-400";
                 
                 authSection.classList.remove('hidden');
-                mainBoardSection.className = "lg:col-span-2 space-y-6 transition-all duration-500";
+                mainBoardSection.className = "col-span-1 lg:col-span-2 space-y-6 transition-all duration-500";
                 renderGroupDropdown([]); 
             }
         });
 
-        socket.on('group_list', (groups) => { renderGroupDropdown(groups); });
+        socket.on('group_list', (groups) => renderGroupDropdown(groups));
 
         socket.on('qr', (data) => {
             const target = document.getElementById('qrcode-target');
             target.innerHTML = "";
-            new QRCode(target, { text: data.qr, width: 170, height: 170, colorDark: "#030712", colorLight: "#ffffff" });
+            // Set size dinamis: 160px di layar kecil agar tidak terpotong CSS pembungkus
+            const size = window.innerWidth < 640 ? 150 : 190;
+            new QRCode(target, { text: data.qr, width: size, height: size, colorDark: "#030712", colorLight: "#ffffff" });
         });
 
         socket.on('pairing_code', (data) => {
             document.getElementById('pairing-display-box').classList.remove('hidden');
             document.getElementById('pairing-code-value').innerText = data.code;
-            logToConsole('success', `Pairing Token Generated: ${data.code}`);
+            logToConsole('success', `Pairing Token: ${data.code}`);
         });
 
-        socket.on('log', (data) => { logToConsole(data.type, data.message); });
+        socket.on('log', (data) => logToConsole(data.type, data.message));
 
         socket.on('item_progress', (data) => {
             const row = document.getElementById(`row-index-${data.index}`);
@@ -285,19 +251,15 @@
             if (!row || !badge) return;
 
             if (data.status === 'success') {
-                badge.className = "px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-md border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1 justify-center";
-                badge.innerHTML = `<i data-lucide="check-circle" class="w-3 h-3"></i> OK`;
-                row.className = "border-b border-gray-900 bg-emerald-950/5 text-gray-200 transition-colors";
+                badge.className = "px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20 text-[9px] font-bold flex items-center gap-1 justify-center";
+                badge.innerHTML = `SUCCESS`;
             } else if (data.status === 'warn') {
-                badge.className = "px-2.5 py-0.5 bg-amber-500/10 text-amber-400 rounded-md border border-amber-500/20 text-[10px] font-bold flex items-center gap-1 justify-center";
-                badge.innerHTML = `<i data-lucide="alert-triangle" class="w-3 h-3"></i> RESTRICT`;
-                row.className = "border-b border-gray-900 bg-amber-950/5 text-gray-200 transition-colors";
+                badge.className = "px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded border border-amber-500/20 text-[9px] font-bold flex items-center gap-1 justify-center";
+                badge.innerHTML = `RESTRICT`;
             } else {
-                badge.className = "px-2.5 py-0.5 bg-rose-500/10 text-rose-400 rounded-md border border-rose-500/20 text-[10px] font-bold flex items-center gap-1 justify-center";
-                badge.innerHTML = `<i data-lucide="x-circle" class="w-3 h-3"></i> FAILED`;
-                row.className = "border-b border-gray-900 bg-rose-950/5 text-gray-200 transition-colors";
+                badge.className = "px-1.5 py-0.5 bg-rose-500/10 text-rose-400 rounded border border-rose-500/20 text-[9px] font-bold flex items-center gap-1 justify-center";
+                badge.innerHTML = `FAILED`;
             }
-            lucide.createIcons();
             logToConsole(data.status, data.message);
         });
 
@@ -305,7 +267,7 @@
             logToConsole('success', `🎉 ${data.message}`);
             const btn = document.getElementById('btn-execute-bulk');
             btn.disabled = false;
-            btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Eksekusi Protokol Antrean`;
+            btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Eksekusi Protokol`;
             lucide.createIcons();
         });
 
@@ -313,34 +275,32 @@
             const select = document.getElementById('group-select');
             select.innerHTML = "";
             if (groups.length === 0) {
-                select.innerHTML = '<option value="">-- Tidak ada grup / WhatsApp Offline --</option>';
+                select.innerHTML = '<option value="">-- Tidak ada grup ditemukan --</option>';
                 return;
             }
-            select.innerHTML = '<option value="">-- Pilih Target Grup WhatsApp Anda --</option>';
+            select.innerHTML = '<option value="">-- Pilih Target Grup --</option>';
             groups.forEach(g => {
                 const opt = document.createElement('option');
-                opt.value = g.id;
-                opt.innerText = g.subject;
-                select.appendChild(opt);
+                opt.value = g.id; opt.innerText = g.subject; select.appendChild(opt);
             });
         }
 
         function refreshGroupList() {
             socket.emit('refresh_groups');
-            logToConsole('info', 'Mengirim perintah sinkronisasi daftar grup massal...');
+            logToConsole('info', 'Menyinkronkan daftar grup...');
         }
 
         function switchAuthTab(type) {
             const btnQr = document.getElementById('tab-qr');
             const btnPairing = document.getElementById('tab-pairing');
             if (type === 'qr') {
-                btnQr.className = "flex-1 text-xs font-semibold py-2.5 rounded-lg bg-teal-600 text-white transition-all";
-                btnPairing.className = "flex-1 text-xs font-semibold py-2.5 rounded-lg text-gray-400 hover:text-white transition-all";
+                btnQr.className = "flex-1 text-xs font-semibold py-2 rounded-lg bg-teal-600 text-white transition-all";
+                btnPairing.className = "flex-1 text-xs font-semibold py-2 rounded-lg text-gray-400 hover:text-white transition-all";
                 document.getElementById('panel-qr').classList.remove('hidden');
                 document.getElementById('panel-pairing').classList.add('hidden');
             } else {
-                btnPairing.className = "flex-1 text-xs font-semibold py-2.5 rounded-lg bg-indigo-600 text-white transition-all";
-                btnQr.className = "flex-1 text-xs font-semibold py-2.5 rounded-lg text-gray-400 hover:text-white transition-all";
+                btnPairing.className = "flex-1 text-xs font-semibold py-2 rounded-lg bg-indigo-600 text-white transition-all";
+                btnQr.className = "flex-1 text-xs font-semibold py-2 rounded-lg text-gray-400 hover:text-white transition-all";
                 document.getElementById('panel-pairing').classList.remove('hidden');
                 document.getElementById('panel-qr').classList.add('hidden');
             }
@@ -359,12 +319,12 @@
             const mg = document.getElementById('mode-group');
 
             if (mode === 'contact') {
-                mc.className = "text-xs px-4 py-2.5 font-bold rounded-lg bg-gray-900 text-teal-400 border border-teal-500/10 transition-all";
-                mg.className = "text-xs px-4 py-2.5 font-bold rounded-lg text-gray-400 hover:text-white transition-all";
+                mc.className = "text-xs px-3 py-2 font-bold rounded-lg bg-gray-900 text-teal-400 border border-teal-500/10 transition-all";
+                mg.className = "text-xs px-3 py-2 font-bold rounded-lg text-gray-400 hover:text-white transition-all";
                 gc.classList.add('hidden');
             } else {
-                mg.className = "text-xs px-4 py-2.5 font-bold rounded-lg bg-gray-900 text-indigo-400 border border-indigo-500/10 transition-all";
-                mc.className = "text-xs px-4 py-2.5 font-bold rounded-lg text-gray-400 hover:text-white transition-all";
+                mg.className = "text-xs px-3 py-2 font-bold rounded-lg bg-gray-900 text-indigo-400 border border-indigo-500/10 transition-all";
+                mc.className = "text-xs px-3 py-2 font-bold rounded-lg text-gray-400 hover:text-white transition-all";
                 gc.classList.remove('hidden');
             }
             clearQueue();
@@ -378,11 +338,10 @@
             reader.onload = function(evt) {
                 const lines = evt.target.result.split(/\r?\n/);
                 parsedDataCache = [];
-                
                 lines.forEach(line => {
                     if(!line.trim()) return;
                     const parts = line.split(',');
-                    parsedDataCache.push({ phone: parts[0]?.trim(), name: parts[1]?.trim() || 'No Metadata Name' });
+                    parsedDataCache.push({ phone: parts[0]?.trim(), name: parts[1]?.trim() || 'No Metadata' });
                 });
                 renderQueuePreviewTable();
             };
@@ -393,78 +352,62 @@
             const tbody = document.getElementById('preview-table-body');
             const section = document.getElementById('preview-section');
             tbody.innerHTML = "";
-            
-            if (parsedDataCache.length === 0) {
-                section.classList.add('hidden');
-                return;
-            }
+            if (parsedDataCache.length === 0) { section.classList.add('hidden'); return; }
 
             document.getElementById('queue-count').innerText = parsedDataCache.length;
-            document.getElementById('file-status-text').innerText = `Terbaca ${parsedDataCache.length} baris data target.`;
+            document.getElementById('file-status-text').innerText = `Terbaca ${parsedDataCache.length} baris data.`;
 
             parsedDataCache.forEach((item, idx) => {
                 const tr = document.createElement('tr');
                 tr.id = `row-index-${idx}`;
-                tr.className = "border-b border-gray-900/60 text-gray-300 hover:bg-gray-900/40 transition-colors";
+                tr.className = "border-b border-gray-900/60 text-gray-300 hover:bg-gray-900/20";
                 tr.innerHTML = `
-                    <td class="p-3 text-center text-gray-600 text-[10px] font-bold">${idx + 1}</td>
-                    <td class="p-3 text-gray-200 font-medium">${item.phone}</td>
-                    <td class="p-3 text-gray-400">${item.name}</td>
-                    <td class="p-3 text-center">
-                        <span id="badge-index-${idx}" class="px-2.5 py-0.5 bg-gray-900 text-gray-500 rounded-md text-[10px] font-bold border border-gray-800/80 inline-flex items-center gap-1 justify-center">
-                            <i data-lucide="clock" class="w-3 h-3"></i> READY
-                        </span>
+                    <td class="p-2 text-center text-gray-600 text-[10px] font-bold">${idx + 1}</td>
+                    <td class="p-2 text-gray-200">${item.phone}</td>
+                    <td class="p-2 text-gray-400">${item.name}</td>
+                    <td class="p-2 text-center">
+                        <span id="badge-index-${idx}" class="px-1.5 py-0.5 bg-gray-900 text-gray-500 rounded border border-gray-800 text-[9px] font-bold block text-center">READY</span>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
-            lucide.createIcons();
             section.classList.remove('hidden');
         }
 
         function clearQueue() {
             parsedDataCache = [];
             document.getElementById('txt-file-input').value = "";
-            document.getElementById('file-status-text').innerText = "Pilih atau seret file teks kamu ke sini";
+            document.getElementById('file-status-text').innerText = "Pilih berkas teks (.txt) Anda";
             renderQueuePreviewTable();
         }
 
         function executeBulkProcess() {
             if(parsedDataCache.length === 0) return alert('Antrean data kosong.');
-            
             let targetGroupJid = "";
             if (activeBulkMode === 'group') {
                 targetGroupJid = document.getElementById('group-select').value;
-                if(!targetGroupJid) return alert('Silahkan pilih grup target dari dropdown terlebih dahulu.');
+                if(!targetGroupJid) return alert('Pilih grup target terlebih dahulu.');
             }
-
             const btn = document.getElementById('btn-execute-bulk');
-            btn.disabled = true;
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Memproses Protokol Pipeline...`;
-            lucide.createIcons();
-            
+            btn.disabled = true; btn.innerText = "Memproses Protokol Pipeline...";
             socket.emit('start_bulk', { type: activeBulkMode, list: parsedDataCache, targetGroupJid: targetGroupJid });
         }
 
         function showFormatGuide() {
-            alert("Format Dokumen Teks (.txt):\n\n[nomor_internasional]\natau\n[nomor_internasional],[nama_nama]\n\nContoh:\n628123456789\n14155552671,John Client");
+            alert("Format Dokumen Teks (.txt):\n[nomor]\natau\n[nomor],[nama_opsional]");
         }
 
         function logToConsole(type, message) {
             const consoleBox = document.getElementById('diagnostic-console');
             const logEl = document.createElement('div');
             let color = "text-indigo-400";
-            let icon = "info";
+            if (type === 'success') color = "text-emerald-400";
+            else if (type === 'warn') color = "text-amber-400";
+            else if (type === 'error') color = "text-rose-400 font-bold";
 
-            if (type === 'success') { color = "text-emerald-400 font-medium"; icon = "check-circle"; }
-            else if (type === 'warn') { color = "text-amber-400 font-medium"; icon = "alert-triangle"; }
-            else if (type === 'error') { color = "text-rose-400 font-bold"; icon = "x-circle"; }
-
-            logEl.className = `flex items-start gap-1.5 ${color}`;
-            logEl.innerHTML = `<span class="text-gray-600 text-[10px] pt-0.5 font-mono">[${new Date().toLocaleTimeString()}]</span> <div class="flex items-center gap-1"><i data-lucide="${icon}" class="w-3 h-3 flex-shrink-0"></i> <span>${message}</span></div>`;
-            
+            logEl.className = `text-[10px] ${color}`;
+            logEl.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
             consoleBox.appendChild(logEl);
-            lucide.createIcons();
             consoleBox.scrollTop = consoleBox.scrollHeight;
         }
     </script>
