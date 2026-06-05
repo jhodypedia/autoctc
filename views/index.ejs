@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PANSA GROUP - WA Master Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background-color: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.04); }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-indigo-400">PANSA SYSTEM MATRIX</h1>
+                <p class="text-xs text-slate-400">Realtime Multi-Country Gateway with Auto Group Engine</p>
+            </div>
+            <div class="flex items-center gap-3 glass py-1.5 px-4 rounded-full">
+                <span id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span id="status-text" class="text-xs font-semibold uppercase tracking-wider text-slate-300">Connecting Engine</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <section class="lg:col-span-1 space-y-6">
+            <div class="glass p-6 rounded-2xl shadow-xl space-y-6">
+                <h2 class="text-sm font-bold text-slate-200 border-b border-slate-800 pb-3 flex items-center gap-2">🔑 Otentikasi Gateway</h2>
+
+                <div class="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800">
+                    <button id="tab-qr" onclick="switchAuthTab('qr')" class="flex-1 text-xs font-medium py-2 rounded-lg bg-teal-600 text-white transition-all">QR Code Method</button>
+                    <button id="tab-pairing" onclick="switchAuthTab('pairing')" class="flex-1 text-xs font-medium py-2 rounded-lg text-slate-400 hover:text-white transition-all">Pairing Code Method</button>
+                </div>
+
+                <div id="panel-qr" class="flex flex-col items-center py-4 space-y-4">
+                    <div id="qrcode-container" class="p-3 bg-white rounded-xl inline-block">
+                        <div id="qrcode-target"></div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 text-center px-4 leading-relaxed">Scan kode QR menggunakan menu perangkat tertaut di aplikasi WhatsApp HP Anda.</p>
+                </div>
+
+                <div id="panel-pairing" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">Nomor WhatsApp Internasional</label>
+                        <input type="text" id="pairing-phone" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-700" placeholder="Contoh: 628123456789">
+                    </div>
+                    <button onclick="requestPairingCode()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-all">Generate Pairing Code</button>
+                    
+                    <div id="pairing-display-box" class="hidden bg-slate-900 border border-indigo-500/30 rounded-xl p-4 text-center">
+                        <span class="text-[10px] font-bold tracking-widest text-indigo-400 uppercase block mb-1">Pairing Code Anda</span>
+                        <div id="pairing-code-value" class="text-2xl font-mono font-bold text-white tracking-widest select-all">--------</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="lg:col-span-2 space-y-6">
+            <div class="glass p-6 rounded-2xl shadow-xl space-y-6">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-100">Bulk Task Core Board</h2>
+                        <p class="text-xs text-slate-400">Proses antrean data asinkronus secara massal</p>
+                    </div>
+                    <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-fit">
+                        <button id="mode-contact" onclick="setBulkMode('contact')" class="text-xs px-4 py-2 font-semibold rounded-lg bg-slate-900 text-teal-400 border border-teal-500/20">Bulk Add Contact</button>
+                        <button id="mode-group" onclick="setBulkMode('group')" class="text-xs px-4 py-2 font-semibold rounded-lg text-gray-400 hover:text-white">Bulk Add Group Member</button>
+                    </div>
+                </div>
+
+                <div id="group-selector-container" class="hidden bg-slate-900/40 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider">🎯 Pilih Grup WhatsApp Target</label>
+                        <button onclick="refreshGroupList()" class="text-xs text-teal-400 hover:underline">🔄 Refresh Daftar Grup</button>
+                    </div>
+                    <select id="group-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500">
+                        <option value="">-- Menunggu sinkronisasi grup / pilih grup --</option>
+                    </select>
+                    <p class="text-[11px] text-amber-400">⚠️ Pastikan akun WhatsApp Anda berstatus ADMIN pada grup terpilih.</p>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Unggah Berkas Antrean (.txt)</label>
+                        <button onclick="showFormatGuide()" class="text-xs text-indigo-400 hover:underline font-medium">Panduan Format File TXT</button>
+                    </div>
+
+                    <div class="border-2 border-dashed border-slate-800 hover:border-slate-700 transition-colors rounded-2xl p-6 text-center cursor-pointer relative bg-slate-950/40">
+                        <input type="file" id="txt-file-input" accept=".txt" onchange="handleFileProcessing(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="space-y-1.5">
+                            <span class="text-2xl block">📄</span>
+                            <p id="file-status-text" class="text-xs font-medium text-slate-300">Pilih atau letakkan dokumen text (.txt) Anda disini</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="preview-section" class="hidden bg-slate-950 rounded-xl border border-slate-800 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Data Antrean (<span id="queue-count">0</span> Data)</span>
+                        <button onclick="clearQueue()" class="text-xs text-rose-400 hover:text-rose-300">Reset</button>
+                    </div>
+                    <div class="max-h-44 overflow-y-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-800 bg-slate-900/10 text-slate-400">
+                                    <th class="p-3">No</th>
+                                    <th class="p-3">Nomor WA Target</th>
+                                    <th class="p-3">Nama (Opsional)</th>
+                                    <th class="p-3">Status Pipeline</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-table-body" class="divide-y divide-slate-900"></tbody>
+                        </table>
+                    </div>
+                    <div class="p-4 bg-slate-900/20 border-t border-slate-800">
+                        <button id="btn-execute-bulk" onclick="executeBulkProcess()" class="w-full bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-400 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-transform active:scale-[0.99]">
+                            Jalankan Antrean Sekarang
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Realtime Diagnostic Event Logger</span>
+                    <div id="diagnostic-console" class="bg-black border border-slate-900 rounded-xl p-4 h-40 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 shadow-inner">
+                        <div class="text-slate-600">[System] Monitoring engine successfully initialized. Ready for active stream tasks.</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const socket = io();
+        let parsedDataCache = [];
+        let activeBulkMode = 'contact';
+
+        socket.on('status', (data) => {
+            const indicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+
+            if (data.isConnected) {
+                indicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]";
+                statusText.innerText = "WhatsApp Connected";
+                statusText.className = "text-xs font-bold uppercase tracking-wider text-emerald-400";
+                document.getElementById('qrcode-container').style.opacity = '0.3';
+            } else {
+                indicator.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+                statusText.innerText = data.state === 'QR_READY' ? "Scan QR Ready" : "Disconnected / Pairing Required";
+                statusText.className = "text-xs font-bold uppercase tracking-wider text-amber-400";
+                document.getElementById('qrcode-container').style.opacity = '1';
+                renderGroupDropdown([]); // Kosongkan grup jika terputus
+            }
+        });
+
+        // Tangkap list grup real-time dari backend
+        socket.on('group_list', (groups) => {
+            renderGroupDropdown(groups);
+        });
+
+        socket.on('qr', (data) => {
+            const target = document.getElementById('qrcode-target');
+            target.innerHTML = "";
+            new QRCode(target, { text: data.qr, width: 170, height: 170, colorDark: "#020617", colorLight: "#ffffff" });
+        });
+
+        socket.on('pairing_code', (data) => {
+            document.getElementById('pairing-display-box').classList.remove('hidden');
+            document.getElementById('pairing-code-value').innerText = data.code;
+            logToConsole('success', `Pairing Code Diterima: ${data.code}`);
+        });
+
+        socket.on('log', (data) => { logToConsole(data.type, data.message); });
+
+        socket.on('item_progress', (data) => {
+            const row = document.getElementById(`row-index-${data.index}`);
+            const badge = document.getElementById(`badge-index-${data.index}`);
+            if (!row || !badge) return;
+
+            if (data.status === 'success') {
+                badge.className = "px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20 text-[10px]";
+                badge.innerText = "Sukses";
+            } else if (data.status === 'warn') {
+                badge.className = "px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded border border-amber-500/20 text-[10px]";
+                badge.innerText = "Restriksi";
+            } else {
+                badge.className = "px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded border border-rose-500/20 text-[10px]";
+                badge.innerText = "Gagal";
+            }
+            logToConsole(data.status, data.message);
+        });
+
+        socket.on('bulk_complete', (data) => {
+            logToConsole('success', `🎉 ${data.message}`);
+            document.getElementById('btn-execute-bulk').disabled = false;
+            document.getElementById('btn-execute-bulk').innerText = "Jalankan Antrean Sekarang";
+        });
+
+        function renderGroupDropdown(groups) {
+            const select = document.getElementById('group-select');
+            select.innerHTML = "";
+            if (groups.length === 0) {
+                select.innerHTML = '<option value="">-- Tidak ada grup ditemukan / WA belum terhubung --</option>';
+                return;
+            }
+            
+            select.innerHTML = '<option value="">-- Silahkan Pilih Grup Target Anda --</option>';
+            groups.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.id;
+                opt.innerText = g.subject;
+                select.appendChild(opt);
+            });
+        }
+
+        function refreshGroupList() {
+            socket.emit('refresh_groups');
+            logToConsole('info', 'Meminta pembaruan daftar grup dari WhatsApp...');
+        }
+
+        function switchAuthTab(type) {
+            const btnQr = document.getElementById('tab-qr');
+            const btnPairing = document.getElementById('tab-pairing');
+            if (type === 'qr') {
+                btnQr.className = "flex-1 text-xs font-medium py-2 rounded-lg bg-teal-600 text-white transition-all";
+                btnPairing.className = "flex-1 text-xs font-medium py-2 rounded-lg text-slate-400 hover:text-white transition-all";
+                document.getElementById('panel-qr').classList.remove('hidden');
+                document.getElementById('panel-pairing').classList.add('hidden');
+            } else {
+                btnPairing.className = "flex-1 text-xs font-medium py-2 rounded-lg bg-indigo-600 text-white transition-all";
+                btnQr.className = "flex-1 text-xs font-medium py-2 rounded-lg text-slate-400 hover:text-white transition-all";
+                document.getElementById('panel-pairing').classList.remove('hidden');
+                document.getElementById('panel-qr').classList.add('hidden');
+            }
+        }
+
+        function requestPairingCode() {
+            const phone = document.getElementById('pairing-phone').value.trim();
+            if(!phone) return alert('Input nomor telepon secara presisi.');
+            socket.emit('request_pairing', { phone });
+        }
+
+        function setBulkMode(mode) {
+            activeBulkMode = mode;
+            const gc = document.getElementById('group-selector-container');
+            const mc = document.getElementById('mode-contact');
+            const mg = document.getElementById('mode-group');
+
+            if (mode === 'contact') {
+                mc.className = "text-xs px-4 py-2 font-semibold rounded-lg bg-slate-900 text-teal-400 border border-teal-500/20";
+                mg.className = "text-xs px-4 py-2 font-semibold rounded-lg text-gray-400 hover:text-white";
+                gc.classList.add('hidden');
+            } else {
+                mg.className = "text-xs px-4 py-2 font-semibold rounded-lg bg-slate-900 text-indigo-400 border border-indigo-500/20";
+                mc.className = "text-xs px-4 py-2 font-semibold rounded-lg text-gray-400 hover:text-white";
+                gc.classList.remove('hidden');
+            }
+            clearQueue();
+        }
+
+        function handleFileProcessing(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const lines = evt.target.result.split(/\r?\n/);
+                parsedDataCache = [];
+                
+                lines.forEach(line => {
+                    if(!line.trim()) return;
+                    const parts = line.split(',');
+                    // Format file .txt sekarang SAMA untuk kedua mode (cukup nomor atau nomor,nama)
+                    parsedDataCache.push({ 
+                        phone: parts[0]?.trim(), 
+                        name: parts[1]?.trim() || 'No Name' 
+                    });
+                });
+                renderQueuePreviewTable();
+            };
+            reader.readAsText(file);
+        }
+
+        function renderQueuePreviewTable() {
+            const tbody = document.getElementById('preview-table-body');
+            const section = document.getElementById('preview-section');
+            tbody.innerHTML = "";
+            
+            if (parsedDataCache.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('queue-count').innerText = parsedDataCache.length;
+            document.getElementById('file-status-text').innerText = `Terbaca ${parsedDataCache.length} baris nomor.`;
+
+            parsedDataCache.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.id = `row-index-${idx}`;
+                tr.className = "border-b border-slate-900 text-slate-400 hover:bg-slate-900/20";
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-600">${idx + 1}</td>
+                    <td class="p-3 font-mono text-slate-200">${item.phone}</td>
+                    <td class="p-3">${item.name}</td>
+                    <td class="p-3"><span id="badge-index-${idx}" class="px-2 py-0.5 bg-slate-800 text-slate-500 rounded text-[10px] font-semibold uppercase">Ready</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            section.classList.remove('hidden');
+        }
+
+        function clearQueue() {
+            parsedDataCache = [];
+            document.getElementById('txt-file-input').value = "";
+            document.getElementById('file-status-text').innerText = "Pilih atau letakkan dokumen text (.txt) Anda disini";
+            renderQueuePreviewTable();
+        }
+
+        function executeBulkProcess() {
+            if(parsedDataCache.length === 0) return alert('Antrean data kosong.');
+            
+            let targetGroupJid = "";
+            if (activeBulkMode === 'group') {
+                targetGroupJid = document.getElementById('group-select').value;
+                if(!targetGroupJid) return alert('Silahkan pilih grup target dari dropdown terlebih dahulu.');
+            }
+
+            document.getElementById('btn-execute-bulk').disabled = true;
+            document.getElementById('btn-execute-bulk').innerText = "Sedang Memproses Antrean...";
+            
+            socket.emit('start_bulk', { 
+                type: activeBulkMode, 
+                list: parsedDataCache,
+                targetGroupJid: targetGroupJid 
+            });
+        }
+
+        function showFormatGuide() {
+            alert("Format Dokumen Teks (.txt) Sekarang Sama untuk Semua Mode:\n\n[nomor_internasional]\natau\n[nomor_internasional],[nama_nama]\n\nContoh:\n628123456789\n628571234567,User Budi\n14155552671");
+        }
+
+        function logToConsole(type, message) {
+            const consoleBox = document.getElementById('diagnostic-console');
+            const logEl = document.createElement('div');
+            logEl.className = type === 'success' ? "text-emerald-400" : type === 'warn' ? "text-amber-400" : type === 'error' ? "text-rose-400 font-bold" : "text-indigo-400";
+            logEl.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleBox.appendChild(logEl);
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
